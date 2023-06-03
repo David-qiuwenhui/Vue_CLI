@@ -1,11 +1,12 @@
 const path = require("path");
 const ESLintWebpackPlugin = require("eslint-webpack-plugin");
 const HTMLWebpackPlugin = require("html-webpack-plugin");
-const ReactRefreshWebpackPlugin = require("@pmmmwh/react-refresh-webpack-plugin");
+const { VueLoaderPlugin } = require("vue-loader");
+const { DefinePlugin } = require("webpack");
 
 const getStyleLoaders = (preProcessor) => {
     return [
-        "style-loader",
+        "vue-style-loader",
         "css-loader",
         {
             loader: "postcss-loader",
@@ -62,16 +63,19 @@ module.exports = {
                         type: "asset/resource",
                     },
                     {
-                        test: /\.jsx?$/,
+                        test: /\.js$/,
                         include: path.resolve(__dirname, "../src"),
                         loader: "babel-loader",
                         options: {
                             cacheDirectory: true,
                             cacheCompression: false,
-                            plugins: ["react-refresh/babel"], // 开启js的HRM功能
                         },
                     },
                 ],
+            },
+            {
+                test: /\.vue$/,
+                loader: "vue-loader",
             },
         ],
     },
@@ -89,7 +93,13 @@ module.exports = {
         new HTMLWebpackPlugin({
             template: path.resolve(__dirname, "../public/index.html"),
         }),
-        new ReactRefreshWebpackPlugin(), // 开启js的HRM功能
+        new VueLoaderPlugin(),
+        // cross-env 定义的环境变量给打包工具使用
+        // DefinePlugin 定义环境变量给源代码使用 从而解决Vue3页面警告的问题
+        new DefinePlugin({
+            __VUE_OPTIONS_API__: true,
+            __VUE_PROD_DEVTOOLS__: false,
+        }),
     ],
     mode: "development",
     devtool: "cheap-module-source-map",
@@ -104,7 +114,7 @@ module.exports = {
     // webpack解析模块加载选项
     resolve: {
         // 自动补全全文见拓展名
-        extensions: [".jsx", ".js", ".json"],
+        extensions: [".vue", ".js", ".json"],
     },
     devServer: {
         host: "localhost",
