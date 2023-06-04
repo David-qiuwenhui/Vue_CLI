@@ -12,6 +12,11 @@ const CopyPlugin = require("copy-webpack-plugin");
 const { VueLoaderPlugin } = require("vue-loader");
 const { DefinePlugin } = require("webpack");
 
+// Element Plus 按需导入的辅助插件
+const AutoImport = require("unplugin-auto-import/webpack");
+const components = require("unplugin-vue-components/webpack");
+const { ElementPlusResolver } = require("unplugin-vue-components/resolvers");
+
 // 判断当前模式
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -28,7 +33,15 @@ const getStyleLoaders = (preProcessor) => {
                 },
             },
         },
-        preProcessor,
+        preProcessor && {
+            loader: preProcessor,
+            options:
+                preProcessor === "sass-loader"
+                    ? {
+                          additionalData: `@use "@/styles/element/index.scss" as *;`,
+                      }
+                    : {},
+        },
     ].filter(Boolean);
 };
 
@@ -93,6 +106,13 @@ module.exports = {
             {
                 test: /\.vue$/,
                 loader: "vue-loader",
+                options: {
+                    // 开启缓存
+                    cacheDirectory: path.resolve(
+                        __dirname,
+                        "../node_modules/.cache/vue-loader"
+                    ),
+                },
             },
         ],
     },
@@ -133,6 +153,13 @@ module.exports = {
         new DefinePlugin({
             __VUE_OPTIONS_API__: true,
             __VUE_PROD_DEVTOOLS__: false,
+        }),
+        // 按需加载element-plus
+        AutoImport({
+            resolvers: [ElementPlusResolver()],
+        }),
+        components({
+            resolvers: [ElementPlusResolver({ importStyle: "sass" })], // 自定义主题 引入sass
         }),
     ].filter(Boolean),
     mode: isProduction ? "production" : "development",
@@ -176,11 +203,39 @@ module.exports = {
                 },
             }), */
         ],
+        splitChunks: {
+            chunks: "all",
+            cacheGroups: {
+                // 将node_modules中比较大的模块单独打包 从而并行加载速度更好
+                elementPlus: {
+                    name: "elementPlus-chunk",
+                    test: /[\\/]node_modules[\\/]_?element-plus(.*)/,
+                    priority: 30,
+                },
+                // 将Vue相关的库单独打包 减少node_modules的chunk体积
+                vue: {
+                    name: "vue-chunk",
+                    test: /[\\/]node_modules[\\/]vue(.*)[\\/]/,
+                    chunks: "initial",
+                    priority: 20,
+                },
+                libs: {
+                    name: "libs-chunk",
+                    test: /[\\/]node_modules[\\/]/,
+                    chunks: "initial",
+                    priority: 10,
+                },
+            },
+        },
     },
     // webpack解析模块加载选项
     resolve: {
         // 自动补全全文见拓展名
         extensions: [".vue", ".js", ".json"],
+        // 配置路径别名
+        alias: {
+            "@": path.resolve(__dirname, "../src"),
+        },
     },
     devServer: {
         host: "localhost",
@@ -189,4 +244,5 @@ module.exports = {
         hot: true, // 开启HMR
         historyApiFallback: true, // 解决前端路由刷新404问题
     },
+    performance: false,
 };
